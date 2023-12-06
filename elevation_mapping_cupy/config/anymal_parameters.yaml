@@ -88,7 +88,7 @@ publishers:
     basic_layers: ['min_filter']
     fps: 3.0
   traversable_segmentation: # Topic name
-    layers: ['min_filter', 'smooth', 'inpaint', 'upper_bound','rgb_image','sem_image','class_probabilities','bayes_class_probabilities'] #,'rgb_image2','rgb_image3']
+    layers: ['min_filter', 'smooth', 'inpaint', 'upper_bound','dummy_image','rgb_image','sem_image','class_probabilities','bayes_class_probabilities'] #,'rgb_image2','rgb_image3']
     basic_layers: ['min_filter']
     fps: 3.0
 

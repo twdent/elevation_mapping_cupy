@@ -64,6 +64,13 @@ subscribers:
     channels: ["bayes_class_probabilities"]
     data_type: image
 
+  dummy_image:
+    fusion: ['image_color']
+    topic_name_camera: /dummy_img_topic
+    topic_name_camera_info: /wide_angle_camera_front/camera_info
+    channels: ["dummy_image"]
+    data_type: image
+
   # Traversability
   # wvn_front_traversability:
   #   fusion: ['image_exponential']
