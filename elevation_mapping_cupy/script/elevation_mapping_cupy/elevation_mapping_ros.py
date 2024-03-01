@@ -90,12 +90,15 @@ class ElevationMapWrapper:
         for key, config in self.subscribers.items():
             if config["data_type"] == "image":
 
-                #check if compressed
+                    
                 
                 
                 self.camera_info_subs[key] = rospy.Subscriber(config["topic_name_camera_info"], CameraInfo, self.callback_camera_info, key, queue_size=1)
-                
-                camera_sub = message_filters.Subscriber(config["topic_name_camera"], CompressedImage) # changed from Image to CompressedImage
+                #check if uncompressed
+                if key == 'traversable_segmentation_probs':
+                    camera_sub = message_filters.Subscriber(config["topic_name_camera"], Image)
+                else:
+                    camera_sub = message_filters.Subscriber(config["topic_name_camera"], CompressedImage) # changed from Image to CompressedImage
                 # camera_info_sub = message_filters.Subscriber(config["topic_name_camera_info"], CameraInfo)
                 self.image_subs[key] = message_filters.ApproximateTimeSynchronizer(
                     [camera_sub], queue_size=10, slop=0.5
@@ -157,7 +160,8 @@ class ElevationMapWrapper:
                 arr.layout.dim.append(MAD(label="row_index", size=N, stride=N))
                 arr.data = tuple(np.ascontiguousarray(data.T).reshape(-1))
                 gm.data.append(arr)
-            except:
+            except Exception as e:
+                print("Error: ", e)
                 if layer in gm.basic_layers:
                     print("Error: Missed Layer in basic layers")
 
@@ -194,8 +198,11 @@ class ElevationMapWrapper:
         q = transform.transform.rotation
         R = quaternion_matrix([q.x, q.y, q.z, q.w])[:3, :3]
         
-        # semantic_img = self.cv_bridge.imgmsg_to_cv2(camera_msg, desired_encoding="passthrough")
-        semantic_img = self.cv_bridge.compressed_imgmsg_to_cv2(camera_msg, desired_encoding="passthrough")
+        if sub_key == 'traversable_segmentation_probs':
+            semantic_img = self.cv_bridge.imgmsg_to_cv2(camera_msg, desired_encoding="passthrough")
+
+        else:
+            semantic_img = self.cv_bridge.compressed_imgmsg_to_cv2(camera_msg, desired_encoding="passthrough")
 
         # #show image
         # cv2.imshow("image", semantic_img)
@@ -242,7 +249,7 @@ class ElevationMapWrapper:
         # process pointcloud
         self._map.input(pts, channels, R, t, 0, 0)
         self._pointcloud_process_counter += 1
-        print("Pointclouds processed: ", self._pointcloud_process_counter)
+        # print("Pointclouds processed: ", self._pointcloud_process_counter)
 
     def update_pose(self, t):
         # get pose of base
