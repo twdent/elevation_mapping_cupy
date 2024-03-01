@@ -1,0 +1,23 @@
+<launch>
+    <node name="elevation_mapping_cupy_shift_1" pkg="elevation_mapping_cupy" type="shift_gridmap.py">
+        <param name="gridmap_sub_topic"                      value="/elevation_mapping/traversable_segmentation" /> 
+        <param name="gridmap_pub_topic"                      value="fusion_maps" />
+        <param name="offset_factor_x"                      value="1.0" />
+        <param name="offset_factor_y"                      value="0" />
+    </node>
+
+    <node name="elevation_mapping_cupy_shift_2" pkg="elevation_mapping_cupy" type="shift_gridmap.py"  output="screen">
+        <param name="gridmap_sub_topic"                      value="/elevation_mapping/traversable_segmentation" /> 
+        <param name="gridmap_pub_topic"                      value="fusion_maps" />
+        <param name="offset_factor_x"                      value="1.0" />
+        <param name="offset_factor_y"                      value="1.0" />
+    </node>
+
+    <node name="elevation_mapping_cupy_shift_current" pkg="elevation_mapping_cupy" type="shift_gridmap.py">
+        <param name="gridmap_sub_topic"                      value="/elevation_mapping/traversable_segmentation" /> 
+        <param name="gridmap_pub_topic"                      value="fusion_maps" />
+        <param name="offset_factor_x"                      value="0" />
+        <param name="offset_factor_y"                      value="1.0" />
+    </node>
+
+  </launch>
