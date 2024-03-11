@@ -131,12 +131,12 @@ class SemanticMap:
             shift_value:
         """
         self.semantic_map = cp.roll(self.semantic_map, shift_value, axis=(1, 2))
-        self.pad_value(self.semantic_map, shift_value, value=0.0)
+        self.pad_value(self.semantic_map, shift_value, value=cp.nan)
         self.new_map = cp.roll(self.new_map, shift_value, axis=(1, 2))
-        self.pad_value(self.new_map, shift_value, value=0.0)
+        self.pad_value(self.new_map, shift_value, value=cp.nan)
         for el in self.elements_to_shift.values():
             el = cp.roll(el, shift_value, axis=(1, 2))
-            self.pad_value(el, shift_value, value=0.0)
+            self.pad_value(el, shift_value, value=cp.nan)
 
     def get_fusion(
         self, channels: List[str], channel_fusions: Dict[str, str], layer_specs: Dict[str, str]

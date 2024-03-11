@@ -1,3 +1,5 @@
+import os, sys
+
 from elevation_mapping_cupy import ElevationMap
 from elevation_mapping_cupy import Parameter
 
@@ -14,7 +16,7 @@ import rospkg
 import message_filters
 from cv_bridge import CvBridge
 
-from sensor_msgs.msg import PointCloud2, Image, CameraInfo
+from sensor_msgs.msg import PointCloud2, Image, CameraInfo, CompressedImage
 from grid_map_msgs.msg import GridMap
 from std_msgs.msg import Float32MultiArray
 from std_msgs.msg import MultiArrayLayout as MAL
@@ -22,7 +24,7 @@ from std_msgs.msg import MultiArrayDimension as MAD
 
 import numpy as np
 from functools import partial
-
+import cv2
 PDC_DATATYPE = {
     "1": np.int8,
     "2": np.uint8,
@@ -68,7 +70,7 @@ class ElevationMapWrapper:
 
     def initalize_ros(self):
         rospy.init_node(self.node_name, anonymous=False)
-        self._tf_buffer = tf2_ros.Buffer()
+        self._tf_buffer = tf2_ros.Buffer(cache_time=rospy.Duration(50.0))
         self._listener = tf2_ros.TransformListener(self._tf_buffer)
         self.get_ros_params()
 
@@ -79,22 +81,46 @@ class ElevationMapWrapper:
                 self.cv_bridge = CvBridge()
                 break
 
-        pointcloud_subs = {}
-        image_subs = {}
+
+        self.camera_info = {}
+        self.camera_info_subs = {}
+        self.image_subs = {}
+        self.pointcloud_subs = {}
+        
         for key, config in self.subscribers.items():
             if config["data_type"] == "image":
-                camera_sub = message_filters.Subscriber(config["topic_name_camera"], Image)
-                camera_info_sub = message_filters.Subscriber(config["topic_name_camera_info"], CameraInfo)
-                image_subs[key] = message_filters.ApproximateTimeSynchronizer(
-                    [camera_sub, camera_info_sub], queue_size=10, slop=0.5
+
+                    
+                
+                
+                self.camera_info_subs[key] = rospy.Subscriber(config["topic_name_camera_info"], CameraInfo, self.callback_camera_info, key, queue_size=1)
+                #check if uncompressed
+                if key == 'traversable_segmentation_probs':
+                    camera_sub = message_filters.Subscriber(config["topic_name_camera"], Image)
+                else:
+                    camera_sub = message_filters.Subscriber(config["topic_name_camera"], CompressedImage) # changed from Image to CompressedImage
+                # camera_info_sub = message_filters.Subscriber(config["topic_name_camera_info"], CameraInfo)
+                self.image_subs[key] = message_filters.ApproximateTimeSynchronizer(
+                    [camera_sub], queue_size=10, slop=0.5
                 )
-                image_subs[key].registerCallback(self.image_callback, key)
+                self.image_subs[key].registerCallback(self.image_callback, key)
+
+            
+
 
             elif config["data_type"] == "pointcloud":
-                pointcloud_subs[key] = rospy.Subscriber(
+                self.pointcloud_subs[key] = rospy.Subscriber(
                     config["topic_name"], PointCloud2, self.pointcloud_callback, key
                 )
 
+        
+
+    def callback_camera_info(self, camera_info_msg, sub_key):
+        if not (sub_key in self.camera_info):
+            self.camera_info[sub_key] = camera_info_msg
+            self.camera_info_subs[sub_key].unregister()
+            self.camera_info_subs.pop(sub_key)
+    
     def register_publishers(self):
         self._publishers = {}
         self._publishers_timers = []
@@ -104,7 +130,6 @@ class ElevationMapWrapper:
             self._publishers_timers.append(rospy.Timer(rospy.Duration(1 / v["fps"]), partial(self.publish_map, k)))
 
     def publish_map(self, k, t):
-        print("publish_map")
         if self._map_q is None:
             return
         gm = GridMap()
@@ -135,7 +160,8 @@ class ElevationMapWrapper:
                 arr.layout.dim.append(MAD(label="row_index", size=N, stride=N))
                 arr.data = tuple(np.ascontiguousarray(data.T).reshape(-1))
                 gm.data.append(arr)
-            except:
+            except Exception as e:
+                print("Error: ", e)
                 if layer in gm.basic_layers:
                     print("Error: Missed Layer in basic layers")
 
@@ -149,8 +175,14 @@ class ElevationMapWrapper:
         self.timer_pose = rospy.Timer(rospy.Duration(1 / self.update_pose_fps), self.update_pose)
         self.timer_time = rospy.Timer(rospy.Duration(self.time_interval), self.update_time)
 
-    def image_callback(self, camera_msg, camera_info_msg, sub_key):
+    def image_callback(self, camera_msg, sub_key):
         # get pose of image
+        
+        if sub_key not in self.camera_info:
+            print("camera info not ready")
+            return
+        
+        camera_info_msg = self.camera_info[sub_key]
         ti = rospy.Time(secs=camera_msg.header.stamp.secs, nsecs=camera_msg.header.stamp.nsecs)
         self._last_t = ti
         try:
@@ -165,8 +197,16 @@ class ElevationMapWrapper:
         t = np.array([t.x, t.y, t.z])
         q = transform.transform.rotation
         R = quaternion_matrix([q.x, q.y, q.z, q.w])[:3, :3]
+        
+        if sub_key == 'traversable_segmentation_probs':
+            semantic_img = self.cv_bridge.imgmsg_to_cv2(camera_msg, desired_encoding="passthrough")
 
-        semantic_img = self.cv_bridge.imgmsg_to_cv2(camera_msg, desired_encoding="passthrough")
+        else:
+            semantic_img = self.cv_bridge.compressed_imgmsg_to_cv2(camera_msg, desired_encoding="passthrough")
+
+        # #show image
+        # cv2.imshow("image", semantic_img)
+        # cv2.waitKey(1)
 
         if len(semantic_img.shape) != 2:
             semantic_img = [semantic_img[:, :, k] for k in range(3)]
@@ -174,10 +214,11 @@ class ElevationMapWrapper:
         else:
             semantic_img = [semantic_img]
 
-        assert np.all(np.array(camera_info_msg.D) == 0.0), "Undistortion not implemented"
+        # assert np.all(np.array(camera_info_msg.D) == 0.0), "Undistortion not implemented"
         K = np.array(camera_info_msg.K, dtype=np.float32).reshape(3, 3)
         # process pointcloud
         self._map.input_image(sub_key, semantic_img, R, t, K, camera_info_msg.height, camera_info_msg.width)
+
         self._image_process_counter += 1
 
     def pointcloud_callback(self, msg, sub_key):
@@ -208,7 +249,7 @@ class ElevationMapWrapper:
         # process pointcloud
         self._map.input(pts, channels, R, t, 0, 0)
         self._pointcloud_process_counter += 1
-        print("Pointclouds processed: ", self._pointcloud_process_counter)
+        # print("Pointclouds processed: ", self._pointcloud_process_counter)
 
     def update_pose(self, t):
         # get pose of base
@@ -240,7 +281,7 @@ class ElevationMapWrapper:
     def get_ros_params(self):
         # TODO fix this here when later launching with launch-file
         # This is currently {p} elevation_mapping")
-        typ = "sim"
+        typ = "anymal"
         para = os.path.join(self.root, f"config/{typ}_parameters.yaml")
         sens = os.path.join(self.root, f"config/{typ}_sensor_parameter.yaml")
         plugin = os.path.join(self.root, f"config/{typ}_plugin_config.yaml")
@@ -255,7 +296,7 @@ class ElevationMapWrapper:
         self.initialize_frame_id = rospy.get_param("~initialize_frame_id", "base")
         self.initialize_tf_offset = rospy.get_param("~initialize_tf_offset", 0.0)
         self.pose_topic = rospy.get_param("~pose_topic", "pose")
-        self.map_frame = rospy.get_param("~map_frame", "map")
+        self.map_frame = rospy.get_param("~map_frame", "odom") # changed this to align with anymal_params.yaml
         self.base_frame = rospy.get_param("~base_frame", "base")
         self.corrected_map_frame = rospy.get_param("~corrected_map_frame", "corrected_map")
         self.initialize_method = rospy.get_param("~initialize_method", "cubic")
