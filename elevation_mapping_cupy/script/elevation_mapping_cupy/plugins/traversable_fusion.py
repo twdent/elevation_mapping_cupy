@@ -20,7 +20,6 @@ class TravFusion(PluginBase):
             **kwargs ():
         """
         super().__init__()
-        self.traversable = cp.zeros((cell_n, cell_n), dtype=cp.float32)
         self.geo_trav_weight = float(geo_trav_weight) 
         
 
@@ -55,6 +54,7 @@ class TravFusion(PluginBase):
 
         geometric_trav_ind = layer_names.index('traversability')
         geometric_trav = elevation_map[geometric_trav_ind]
+        
         
         self.traversable : cp.ndarray = self.geo_trav_weight* geometric_trav + (1-self.geo_trav_weight)*sem_trav_probs
 

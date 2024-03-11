@@ -75,7 +75,7 @@ traversable_fusion_min:                                      # Name of your filt
   extra_params:                               # This params are passed to the plugin class on initialization.
     geo_trav_weight: 0.5                      # Example param
     min_safe_geo: 0.3                             # Example param
-    min_safe_sem: 0.1
+    min_safe_sem: 0.0
 
 info_goal:
   type: "info_goal"
@@ -86,6 +86,15 @@ info_goal:
   extra_params:
     robot_size: 1
     robot_cell_sight: 100
+
+sdf_from_layer:
+  type: "sdf_from_layer"
+  enable: True
+  fill_nan: True
+  is_height_layer: False
+  layer_name: "sdf_layer"
+  extra_params:
+    occupied_threshold: 0.3
     
 # semantic_traversability:
 #   type: "semantic_traversability"
