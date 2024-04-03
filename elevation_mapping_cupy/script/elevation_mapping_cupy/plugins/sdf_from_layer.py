@@ -11,6 +11,7 @@ class SdfPlugin(PluginBase):
     def __init__(
         self,
         occupied_threshold: float = 0.3,
+        occupancy_layer_name: str = 'traversability',
         **kwargs,
     ):
         """This is a filter to create a signed distance field from the traversability map.
@@ -22,8 +23,7 @@ class SdfPlugin(PluginBase):
         """
         super().__init__()
         self.occupied_threshold = float(occupied_threshold)
-                # TODO: move to params
-        self.occupancy_layer_name = "traversable_fusion_min_layer"
+        self.occupancy_layer_name = str(occupancy_layer_name)
 
     def __call__(
         self,
@@ -31,7 +31,8 @@ class SdfPlugin(PluginBase):
         layer_names: List[str],
         plugin_layers: cp.ndarray,
         plugin_layer_names: List[str],
-        semantic_map,
+        semantic_layers: cp.ndarray,
+        semantic_layer_names: List[str],
         *args,
     ) -> cp.ndarray:
         """
@@ -41,7 +42,8 @@ class SdfPlugin(PluginBase):
             layer_names (List[str]):
             plugin_layers (cupy._core.core.ndarray):
             plugin_layer_names (List[str]):
-            semantic_map (elevation_mapping_cupy.semantic_map.SemanticMap):
+            semantic_layers (cupy._core.core.ndarray):
+            semantic_layer_names (List[str]):
             *args ():
 
         Returns:
@@ -49,15 +51,15 @@ class SdfPlugin(PluginBase):
         """
 
 
-        occupancy_layer_ind = plugin_layer_names.index(self.occupancy_layer_name)
-        occupancy_layer = plugin_layers[occupancy_layer_ind]
+        occupancy_layer = self.get_layer_data(elevation_map, layer_names, plugin_layers, 
+                                              plugin_layer_names, semantic_layers, semantic_layer_names, 
+                                              self.occupancy_layer_name)
         inv_occupancy_grid = cp.where(occupancy_layer < self.occupied_threshold, 0, 1)
         
-        resolution = semantic_map.param.resolution
+        # resolution = semantic_map.param.resolution
+        resolution = 0.04 # TODO: no longer have access to sem map, move to plugin params?
+
         self.sdf = distance_transform_edt(inv_occupancy_grid,sampling=resolution)
 
         return self.sdf
-
-
-        
 

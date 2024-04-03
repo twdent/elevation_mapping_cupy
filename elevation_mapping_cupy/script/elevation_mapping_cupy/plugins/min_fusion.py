@@ -1,4 +1,5 @@
 import cupy as cp
+import cv2
 import numpy as np
 from typing import List
 
@@ -35,7 +36,8 @@ class TravFusion(PluginBase):
         layer_names: List[str],
         plugin_layers: cp.ndarray,
         plugin_layer_names: List[str],
-        semantic_map,
+        semantic_layers: cp.ndarray,
+        semantic_layer_names: List[str],
         *args,
     ) -> cp.ndarray:
         """
@@ -45,29 +47,33 @@ class TravFusion(PluginBase):
             layer_names (List[str]):
             plugin_layers (cupy._core.core.ndarray):
             plugin_layer_names (List[str]):
-            semantic_map (elevation_mapping_cupy.semantic_map.SemanticMap):
+            semantic_layers (cupy._core.core.ndarray):
+            semantic_layer_names (List[str]):
             *args ():
 
         Returns:
             cupy._core.core.ndarray:
         """
-        #get the elevation_map[3] layer (traversability) and 
-        #the semantic_map class probs layer - image currently? - so first channel for traversability
-        # /traversable_segmentation/class_probabilities [sensor_msgs/Image]
-
-        probs_layer_ind = semantic_map.layer_names.index('class_probabilities')
-        sem_trav_probs = semantic_map.semantic_map[probs_layer_ind]
-
-        geometric_trav_ind = layer_names.index('traversability')
-        geometric_trav = elevation_map[geometric_trav_ind]
+        #this can be called before sematic map is created, so we need to check if the trav layer is present
+        sem_trav_prob = self.get_layer_data(elevation_map, layer_names, plugin_layers, 
+                                                plugin_layer_names, semantic_layers, semantic_layer_names,
+                                                "trav")
+        if sem_trav_prob is None:
+            print("Couldn't find trav layer in semantic map")
+            return self.traversable
         
-        weighted_sum = self.geo_trav_weight* geometric_trav + (1-self.geo_trav_weight)*sem_trav_probs
+        geometric_trav = self.get_layer_data(elevation_map, layer_names, plugin_layers, 
+                                             plugin_layer_names, semantic_layers, semantic_layer_names,
+                                             "traversability")
+        
+        weighted_sum = self.geo_trav_weight* geometric_trav + (1-self.geo_trav_weight)*sem_trav_prob
 
         # min fusion - min of the two traversability maps if less than min_safe for each map
         # else weighted sum of the two maps
         
-        self.traversable = cp.where(geometric_trav < self.min_safe_geo, cp.minimum(geometric_trav, sem_trav_probs), weighted_sum)
-        self.traversable = cp.where(sem_trav_probs < self.min_safe_sem, cp.minimum(geometric_trav, sem_trav_probs), weighted_sum)
-
+        self.traversable = cp.where(geometric_trav < self.min_safe_geo, cp.minimum(geometric_trav, sem_trav_prob), 
+                                    weighted_sum)
+        self.traversable = cp.where(sem_trav_prob < self.min_safe_sem, cp.minimum(geometric_trav, sem_trav_prob), 
+                                    weighted_sum)
 
         return self.traversable
