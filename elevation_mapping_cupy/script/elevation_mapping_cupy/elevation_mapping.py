@@ -472,7 +472,6 @@ class ElevationMap:
         """Input image and fuse the new measurements to update the elevation map.
 
         Args:
-            sub_key (str): Key used to identify the subscriber configuration
             image (List[cupy._core.core.ndarray]): List of array containing the individual image input channels
             R (cupy._core.core.ndarray): Camera optical center rotation
             t (cupy._core.core.ndarray): Camera optical center translation

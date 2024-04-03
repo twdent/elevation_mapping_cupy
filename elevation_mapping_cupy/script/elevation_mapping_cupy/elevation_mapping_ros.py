@@ -42,7 +42,7 @@ class ElevationMapWrapper:
         rospack = rospkg.RosPack()
         self.root = rospack.get_path("elevation_mapping_cupy")
         weight_file = os.path.join(self.root, "config/core/weights.dat")
-        plugin_config_file = os.path.join(self.root, "config/core/plugin_config.yaml")
+        plugin_config_file = os.path.join(self.root, "config/setups/anymal/anymal_plugin_config.yaml") # should get from rosparams maybe? changed from config/core/plugin_config.yaml
         self.param = Parameter(use_chainer=False, weight_file=weight_file, plugin_config_file=plugin_config_file)
 
         self.node_name = "elevation_mapping"
@@ -93,12 +93,12 @@ class ElevationMapWrapper:
                     
                 
                 
-                self.camera_info_subs[key] = rospy.Subscriber(config["topic_name_camera_info"], CameraInfo, self.callback_camera_info, key, queue_size=1)
+                self.camera_info_subs[key] = rospy.Subscriber(config["camera_info_topic_name"], CameraInfo, self.callback_camera_info, key, queue_size=1)
                 #check if uncompressed
                 if key == 'traversable_segmentation_probs':
-                    camera_sub = message_filters.Subscriber(config["topic_name_camera"], Image)
+                    camera_sub = message_filters.Subscriber(config["topic_name"], Image)
                 else:
-                    camera_sub = message_filters.Subscriber(config["topic_name_camera"], CompressedImage) # changed from Image to CompressedImage
+                    camera_sub = message_filters.Subscriber(config["topic_name"], CompressedImage) # changed from Image to CompressedImage
                 # camera_info_sub = message_filters.Subscriber(config["topic_name_camera_info"], CameraInfo)
                 self.image_subs[key] = message_filters.ApproximateTimeSynchronizer(
                     [camera_sub], queue_size=10, slop=0.5
@@ -217,12 +217,16 @@ class ElevationMapWrapper:
         # assert np.all(np.array(camera_info_msg.D) == 0.0), "Undistortion not implemented"
         K = np.array(camera_info_msg.K, dtype=np.float32).reshape(3, 3)
         # process pointcloud
-        self._map.input_image(sub_key, semantic_img, R, t, K, camera_info_msg.height, camera_info_msg.width)
+        # if sub_key == 'traversable_segmentation_probs':
+        #     channels = ["class_probabilities"]
+        # else:
+        channels = ["rgb"]
+        self._map.input_image(semantic_img, channels, R, t, K, camera_info_msg.height, camera_info_msg.width) # removed sub_key
 
         self._image_process_counter += 1
 
     def pointcloud_callback(self, msg, sub_key):
-        channels = ["x", "y", "z"] + self.param.subscriber_cfg[sub_key]["channels"]
+        channels = ["x", "y", "z"] #+ self.param.subscriber_cfg[sub_key]["channels"] # changed from self.param.subscriber_cfg[sub_key]["channels"] to []
 
         points = ros_numpy.numpify(msg)
         pts = np.empty((points.shape[0], 0))
@@ -247,7 +251,7 @@ class ElevationMapWrapper:
         R = quaternion_matrix([q.x, q.y, q.z, q.w])[:3, :3]
 
         # process pointcloud
-        self._map.input(pts, channels, R, t, 0, 0)
+        self._map.input_pointcloud(pts, channels, R, t, 0, 0)
         self._pointcloud_process_counter += 1
         # print("Pointclouds processed: ", self._pointcloud_process_counter)
 
@@ -282,9 +286,9 @@ class ElevationMapWrapper:
         # TODO fix this here when later launching with launch-file
         # This is currently {p} elevation_mapping")
         typ = "anymal"
-        para = os.path.join(self.root, f"config/{typ}_parameters.yaml")
-        sens = os.path.join(self.root, f"config/{typ}_sensor_parameter.yaml")
-        plugin = os.path.join(self.root, f"config/{typ}_plugin_config.yaml")
+        para = os.path.join(self.root, f"config/setups/anymal/{typ}_parameters.yaml")
+        sens = os.path.join(self.root, f"config/setups/anymal/{typ}_sensor_parameter.yaml")
+        plugin = os.path.join(self.root, f"config/setups/anymal/{typ}_plugin_config.yaml")
 
         os.system(f"rosparam delete /{self.node_name}")
         os.system(f"rosparam load {para} elevation_mapping")

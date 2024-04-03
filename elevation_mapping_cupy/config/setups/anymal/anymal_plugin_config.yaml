@@ -26,3 +26,90 @@ inpainting:
   layer_name: "inpaint"
   extra_params:
     method: "telea"                           # telea or ns
+
+traversable_fusion:                           # Name of your filter
+  type: "min_fusion"                          # Specify the name of your plugin (the name of your file name).
+  enable: True                                # weather to load this plugin
+  fill_nan: True                              # Fill nans to invalid cells of elevation layer.
+  is_height_layer: False                      # If this is a height layer (such as elevation) or not (such as traversability)
+  layer_name: "traversable_fusion_layer"      # The layer name.
+  extra_params:                               # This params are passed to the plugin class on initialization.
+    geo_trav_weight: 0.5                      # The weighting of the geometric layer
+    min_safe_geo: 0.0                         # Min safe geo val. Below this the min of semantic and geometric is used
+    min_safe_sem: 0.0                         # Min safe sem val. Below this the min of semantic and geometric is used
+
+traversable_fusion_min0.0:                       # Name of your filter
+  type: "min_fusion"                          # Specify the name of your plugin (the name of your file name).
+  enable: True                                # weather to load this plugin
+  fill_nan: True                              # Fill nans to invalid cells of elevation layer.
+  is_height_layer: False                      # If this is a height layer (such as elevation) or not (such as traversability)
+  layer_name: "traversable_fusion_min_layer0.0"  # The layer name.
+  extra_params:                               # This params are passed to the plugin class on initialization.
+    geo_trav_weight: 0.0                      # The weighting of the geometric layer
+    min_safe_geo: 0.0                         # Min safe geo val. Below this the min of semantic and geometric is used
+    min_safe_sem: 0.0                         # Min safe sem val. Below this the min of semantic and geometric is used
+
+traversable_fusion_min0.5:                       # Name of your filter
+  type: "min_fusion"                          # Specify the name of your plugin (the name of your file name).
+  enable: True                                # weather to load this plugin
+  fill_nan: True                              # Fill nans to invalid cells of elevation layer.
+  is_height_layer: False                      # If this is a height layer (such as elevation) or not (such as traversability)
+  layer_name: "traversable_fusion_min_layer0.5"  # The layer name.
+  extra_params:                               # This params are passed to the plugin class on initialization.
+    geo_trav_weight: 0.5                      # The weighting of the geometric layer
+    min_safe_geo: 0.3                         # Min safe geo val. Below this the min of semantic and geometric is used
+    min_safe_sem: 0.0                         # Min safe sem val. Below this the min of semantic and geometric is used
+
+traversable_fusion_min0.8:                       # Name of your filter
+  type: "min_fusion"                          # Specify the name of your plugin (the name of your file name).
+  enable: True                                # weather to load this plugin
+  fill_nan: True                              # Fill nans to invalid cells of elevation layer.
+  is_height_layer: False                      # If this is a height layer (such as elevation) or not (such as traversability)
+  layer_name: "traversable_fusion_min_layer0.8"  # The layer name.
+  extra_params:                               # This params are passed to the plugin class on initialization.
+    geo_trav_weight: 0.8                      # The weighting of the geometric layer
+    min_safe_geo: 0.3                         # Min safe geo val. Below this the min of semantic and geometric is used
+    min_safe_sem: 0.0                         # Min safe sem val. Below this the min of semantic and geometric is used
+
+traversable_fusion_min0.2:                       # Name of your filter
+  type: "min_fusion"                          # Specify the name of your plugin (the name of your file name).
+  enable: True                                # weather to load this plugin
+  fill_nan: True                              # Fill nans to invalid cells of elevation layer.
+  is_height_layer: False                      # If this is a height layer (such as elevation) or not (such as traversability)
+  layer_name: "traversable_fusion_min_layer0.2"  # The layer name.
+  extra_params:                               # This params are passed to the plugin class on initialization.
+    geo_trav_weight: 0.2                      # The weighting of the geometric layer
+    min_safe_geo: 0.3                         # Min safe geo val. Below this the min of semantic and geometric is used
+    min_safe_sem: 0.0                         # Min safe sem val. Below this the min of semantic and geometric is used
+
+info_goal:
+  type: "info_goal"
+  enable: True
+  fill_nan: True
+  is_height_layer: False
+  layer_name: "info_goal"
+  extra_params:
+    robot_size: 1
+    robot_cell_sight: 100
+    occupied_threshold: 0.3
+    occupancy_layer_name: "traversable_fusion_min_layer0.5"
+
+sdf_from_layer0.3:
+  type: "sdf_from_layer"
+  enable: True
+  fill_nan: True
+  is_height_layer: False
+  layer_name: "sdf_layer0.3"
+  extra_params:
+    occupied_threshold: 0.3             # The threshold below which the cell is considered occupied       
+    occupancy_layer_name: "traversable_fusion_min_layer0.5"
+
+sdf_from_layer0.1:
+  type: "sdf_from_layer"
+  enable: True
+  fill_nan: True
+  is_height_layer: False
+  layer_name: "sdf_layer0.1"
+  extra_params:
+    occupied_threshold: 0.1             # The threshold below which the cell is considered occupied       
+    occupancy_layer_name: "traversable_fusion_min_layer0.5"
