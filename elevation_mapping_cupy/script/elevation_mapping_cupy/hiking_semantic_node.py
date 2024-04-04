@@ -15,8 +15,10 @@ from transformers import SegformerImageProcessor, SegformerForSemanticSegmentati
 from torch import nn
 import torch
 import tf
+import os, sys
 
-MODEL_PATH = '/home/twdenton/Thesis/segformer-b0-finetuned-HikingHD'
+rel_path = '../../config/core/segformer-b0-finetuned-HikingHD'
+MODEL_PATH = os.path.join(os.path.dirname(__file__), rel_path)
 
 
 class SegmentationNode:
@@ -29,10 +31,9 @@ class SegmentationNode:
         #Subscribers hdr camera //v4l2_camera/image_raw_throttle/compressed
         # self.image_sub = rospy.Subscriber('/v4l2_camera/image_raw_throttle/compressed', CompressedImage, self.image_callback, queue_size=1, buff_size=2**24)
         # self.info_sub = rospy.Subscriber('/v4l2_camera/camera_info_throttle', CameraInfo, self.info_callback, queue_size=1)
-
-        # info sub not recorded properly, using fixed static transform from wide angle camera
-        # static_transform_publisher x y z qx qy qz qw frame_id child_frame_id  period_in_ms
-        # static_transform_publisher -0.00451632 -0.09041891 0.04183124 -0.00371707 0.10704935 0.99422573 0.00646622 wide_angle_camera_rear_camera_parent hdr_cam
+        # fixed topic /hdr_camera/image_raw/compressed
+        # self.image_sub = rospy.Subscriber('/hdr_camera/image_raw/compressed', CompressedImage, self.image_callback, queue_size=1, buff_size=2**24)
+        # self.info_sub = rospy.Subscriber('/hdr_camera/camera_info', CameraInfo, self.info_callback, queue_size=1)
 
         self.listener = tf.TransformListener()
 
@@ -136,14 +137,15 @@ class SegmentationNode:
         return probability_image_msg
     
     def info_callback(self, msg):
+
         # Publish the camera info
         self.segmented_info_pub.publish(msg)
-        #fix the frame id if it is the hdr camera
-        if msg.header.frame_id == 'camera':
-            msg.header.frame_id = 'hdr_cam'
-            #subtract 17s from the timestamp for incorrect recording
-            msg.header.stamp = msg.header.stamp - rospy.Duration(17)
-            
+        
+        # info sub not recorded properly, using fixed static transform from wide angle camera
+        # static_transform_publisher x y z qx qy qz qw frame_id child_frame_id  period_in_ms
+        # static_transform_publisher -0.00451632 -0.09041891 0.04183124 -0.00371707 0.10704935 0.99422573 0.00646622 wide_angle_camera_rear_camera_parent hdr_cam
+        # self.listener.waitForTransform('wide_angle_camera_rear_camera_parent', 'hdr_cam', msg.header.stamp, rospy.Duration(1.0))
+   
             
 
     def segment_image(self, image):
