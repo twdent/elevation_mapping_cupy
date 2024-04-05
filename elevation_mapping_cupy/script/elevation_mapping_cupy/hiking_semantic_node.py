@@ -54,13 +54,23 @@ class SegmentationNode:
         self.image_sub = rospy.Subscriber('/wide_angle_camera_rear/image_color_rect/compressed', CompressedImage, self.image_callback, queue_size=1, buff_size=2**24)
         
         self.camera_info_msg = rospy.wait_for_message('/wide_angle_camera_rear/camera_info', CameraInfo)
-        self.camera_info_msg.K = [k/4 for k in self.camera_info_msg.K]
-        self.camera_info_msg.K[-1] = 1
-        self.camera_info_msg.P = [p/4 for p in self.camera_info_msg.P]
-        self.camera_info_msg.P[-2] = 1
-        self.camera_info_msg.height = self.camera_info_msg.height/4
-        self.camera_info_msg.width = self.camera_info_msg.width/4 
+        
+        self.height_scale = 512/1080
+        self.width_scale = 512/1440
+        self.camera_info_msg.K = list(self.camera_info_msg.K)
+        self.camera_info_msg.K[0] *= self.width_scale
+        self.camera_info_msg.K[4] *= self.height_scale 
+        self.camera_info_msg.K[2] *= self.width_scale
+        self.camera_info_msg.K[5] *= self.height_scale 
 
+        self.camera_info_msg.P = list(self.camera_info_msg.P)
+        self.camera_info_msg.P[0] *= self.width_scale
+        self.camera_info_msg.P[5] *= self.height_scale 
+        self.camera_info_msg.P[2] *= self.width_scale
+        self.camera_info_msg.P[6] *= self.height_scale 
+        self.camera_info_msg.height = 512
+        self.camera_info_msg.width = 512
+        print(self.camera_info_msg)
 
 
 
@@ -156,7 +166,6 @@ class SegmentationNode:
             outputs = self.model(**inputs)
     
         logits = outputs.logits # shape (batch_size, num_labels, height/4, width/4)
-        print(logits.shape, inputs["pixel_values"].shape, image.size[::-1])
         # First, rescale logits to original image size
 
         # upsampled_logits = nn.functional.interpolate(
