@@ -25,18 +25,9 @@ class SegmentationNode:
     def __init__(self):
         rospy.init_node('segmentation_node', anonymous=False)
 
-        # # Subscribers
-        self.image_sub = rospy.Subscriber('/wide_angle_camera_rear/image_color_rect/compressed', CompressedImage, self.image_callback, queue_size=1, buff_size=2**24)
-        self.info_sub = rospy.Subscriber('/wide_angle_camera_rear/camera_info', CameraInfo, self.info_callback, queue_size=1)
-        #Subscribers hdr camera //v4l2_camera/image_raw_throttle/compressed
-        # self.image_sub = rospy.Subscriber('/v4l2_camera/image_raw_throttle/compressed', CompressedImage, self.image_callback, queue_size=1, buff_size=2**24)
-        # self.info_sub = rospy.Subscriber('/v4l2_camera/camera_info_throttle', CameraInfo, self.info_callback, queue_size=1)
-        # fixed topic /hdr_camera/image_raw/compressed
-        # self.image_sub = rospy.Subscriber('/hdr_camera/image_raw/compressed', CompressedImage, self.image_callback, queue_size=1, buff_size=2**24)
-        # self.info_sub = rospy.Subscriber('/hdr_camera/camera_info', CameraInfo, self.info_callback, queue_size=1)
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
         self.listener = tf.TransformListener()
-
 
         # Publisher
         self.segmented_image_pub = rospy.Publisher('/traversable_segmentation/segmentation/compressed', CompressedImage, queue_size=1)
@@ -47,10 +38,20 @@ class SegmentationNode:
 
         # Initialize model here
         self.processor = SegformerImageProcessor.from_pretrained(MODEL_PATH)
-        self.model = SegformerForSemanticSegmentation.from_pretrained(MODEL_PATH)
+        self.model = SegformerForSemanticSegmentation.from_pretrained(MODEL_PATH, device_map = self.device)
+
+        # # Subscribers
+        self.image_sub = rospy.Subscriber('/wide_angle_camera_rear/image_color_rect/compressed', CompressedImage, self.image_callback, queue_size=1, buff_size=2**24)
+        self.info_sub = rospy.Subscriber('/wide_angle_camera_rear/camera_info', CameraInfo, self.info_callback, queue_size=1)
+        #Subscribers hdr camera //v4l2_camera/image_raw_throttle/compressed
+        # self.image_sub = rospy.Subscriber('/v4l2_camera/image_raw_throttle/compressed', CompressedImage, self.image_callback, queue_size=1, buff_size=2**24)
+        # self.info_sub = rospy.Subscriber('/v4l2_camera/camera_info_throttle', CameraInfo, self.info_callback, queue_size=1)
+        # fixed topic /hdr_camera/image_raw/compressed
+        # self.image_sub = rospy.Subscriber('/hdr_camera/image_raw/compressed', CompressedImage, self.image_callback, queue_size=1, buff_size=2**24)
+        # self.info_sub = rospy.Subscriber('/hdr_camera/camera_info', CameraInfo, self.info_callback, queue_size=1)
 
     def image_callback(self, msg):
-        try:
+        with Timer('Segmentation Callback'):
             start_time = time.time()
             # Create CUDA events
             start_event = torch.cuda.Event(enable_timing=True)
@@ -117,10 +118,8 @@ class SegmentationNode:
             # Calculate the time elapsed
             elapsed_time_ms = start_event.elapsed_time(end_event)
             # rospy.loginfo(f"Segmentation processing time: {end_time - start_time} seconds")
-            rospy.loginfo(f"CUDA seg processing time    : {elapsed_time_ms/1000} seconds")
+            # rospy.loginfo(f"CUDA seg processing time    : {elapsed_time_ms/1000} seconds")
 
-        except Exception as e:
-            rospy.logerr(f"Error processing image: {str(e)}")
 
     def create_probability_image(self, class_probabilities):
         # Normalize probabilities to range [0, 255] and convert to uint8
@@ -150,12 +149,15 @@ class SegmentationNode:
 
     def segment_image(self, image):
         # Perform segmentation 
-        #conver to PIL image
+        #conver to PIL image on device
         image = PIL.Image.fromarray(image)
 
         # Preprocess image
-        inputs = self.processor(image, return_tensors="pt")
+        # with Timer('Preprocessing time'):
+        inputs = self.processor(image, return_tensors="pt").to(self.device)
+        # with Timer('Inference time'):    
         outputs = self.model(**inputs)
+
         logits = outputs.logits # shape (batch_size, num_labels, height/4, width/4)
 
         # First, rescale logits to original image size
@@ -169,10 +171,10 @@ class SegmentationNode:
         # Convert to probabilities for each class
         upsampled_probs = nn.functional.softmax(upsampled_logits, dim=1)
         # as a numpy array
-        upsampled_probs = upsampled_probs[0].detach().numpy().transpose(1, 2, 0)
+        upsampled_probs = upsampled_probs[0].cpu().detach().numpy().transpose(1, 2, 0)
 
         # Second, apply argmax on the class dimension
-        pred_seg = upsampled_logits.argmax(dim=1)[0]
+        pred_seg = upsampled_logits.argmax(dim=1)[0].cpu()
         #ovelay the segmentation on the original image
         seg_overlay = self.get_seg_overlay(image, pred_seg)
 
