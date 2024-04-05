@@ -2,9 +2,9 @@
 
 import rospy
 from sensor_msgs.msg import CompressedImage, CameraInfo,Image
+import cv2
 from cv_bridge import CvBridge
 import numpy as np
-import cv2
 import PIL
 
 from pytictac import Timer, CpuTimer
