@@ -52,24 +52,27 @@ class SegmentationNode:
 
         # # Subscribers
         self.image_sub = rospy.Subscriber('/wide_angle_camera_rear/image_color_rect/compressed', CompressedImage, self.image_callback, queue_size=1, buff_size=2**24)
-        
         self.camera_info_msg = rospy.wait_for_message('/wide_angle_camera_rear/camera_info', CameraInfo)
         
-        self.height_scale = 512/1080
-        self.width_scale = 512/1440
+        print("initial cAM INFO")
+        print(self.camera_info_msg)
+        self.height_scale = 128/1080
+        self.width_scale = 128/1440
         self.camera_info_msg.K = list(self.camera_info_msg.K)
         self.camera_info_msg.K[0] *= self.width_scale
         self.camera_info_msg.K[4] *= self.height_scale 
         self.camera_info_msg.K[2] *= self.width_scale
-        self.camera_info_msg.K[5] *= self.height_scale 
+        self.camera_info_msg.K[5] *= self.height_scale
+        self.camera_info_msg.K = tuple(self.camera_info_msg.K) 
 
         self.camera_info_msg.P = list(self.camera_info_msg.P)
         self.camera_info_msg.P[0] *= self.width_scale
         self.camera_info_msg.P[5] *= self.height_scale 
         self.camera_info_msg.P[2] *= self.width_scale
         self.camera_info_msg.P[6] *= self.height_scale 
-        self.camera_info_msg.height = 512
-        self.camera_info_msg.width = 512
+        self.camera_info_msg.P = tuple(self.camera_info_msg.P)
+        self.camera_info_msg.height = 128
+        self.camera_info_msg.width = 128
         print(self.camera_info_msg)
 
 
