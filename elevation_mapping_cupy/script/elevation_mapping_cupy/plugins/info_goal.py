@@ -9,6 +9,7 @@ from elevation_mapping_cupy.plugins.plugin_manager import PluginBase
 import cv2
 import time
 import torch
+from pytictac import Timer
 
 class FrontierExplorer(PluginBase):
     def __init__(self, 
@@ -33,6 +34,13 @@ class FrontierExplorer(PluginBase):
 
         self.information_gain_arr = cp.zeros((cell_n, cell_n), dtype=cp.float32)
         self.sdf_frontier = cp.zeros((cell_n, cell_n), dtype=cp.float32)
+
+        # kernel approximating a circle of radius robot_cell_sight
+        self.kernel = cp.zeros((2 * self.robot_cell_sight + 1, 2 * self.robot_cell_sight + 1), dtype=cp.int32)
+        for i in range(2 * self.robot_cell_sight + 1):
+            for j in range(2 * self.robot_cell_sight + 1):
+                if (i - self.robot_cell_sight) ** 2 + (j - self.robot_cell_sight) ** 2 <= self.robot_cell_sight ** 2:
+                    self.kernel[i, j] = 1
 
         #testing ros publisher
         # self.pub = rospy.Publisher('frontier_goal', geo_msg.PoseStamped, queue_size=10)
@@ -60,15 +68,12 @@ class FrontierExplorer(PluginBase):
 
         Returns:
             cupy._core.core.ndarray:
-        """
-        # print()
-        # print('Starting timer for frontier exploration.')
-        
+        """            
         # Get the elevation map elevation layer and set it as the grid map
         # Perform the frontier exploration and return the optimal frontier cell
         valid_layer = self.get_layer_data(elevation_map, layer_names, plugin_layers, 
-                                          plugin_layer_names, semantic_layers, semantic_layer_names, 
-                                          'is_valid')
+                                        plugin_layer_names, semantic_layers, semantic_layer_names, 
+                                        'is_valid')
         #erosion to remove small areas of 0s
         eroded_valid_layer = binary_erosion(valid_layer, iterations=1, brute_force=True)
         eroded_free_cells = cp.where(eroded_valid_layer, 0, cp.nan)
@@ -86,8 +91,10 @@ class FrontierExplorer(PluginBase):
         sdf_layer_ind = plugin_layer_names.index('sdf_layer0.1')
         sdf_layer = plugin_layers[sdf_layer_ind]
 
-        optimal_frontier = self.find_optimal_frontier()
-        optimal_frontier = self.find_optimal_frontier_sdf(sdf_layer)
+        with Timer('Optimal Frontier'):
+            optimal_frontier = self.find_optimal_frontier()
+        # with Timer('Optimal Frontier SDF'):
+        #     optimal_frontier = self.find_optimal_frontier_sdf(sdf_layer)
 
         self.one_hot_frontier = cp.zeros_like(self.one_hot_frontier)
         #for vizualization
@@ -105,13 +112,13 @@ class FrontierExplorer(PluginBase):
             g_chan = cp.asnumpy(self.one_hot_frontier*255).astype('uint8')
             b_chan = cp.asnumpy(cp.where(self.grid_map == 0, 0,255)).astype('uint8')
             disp_img = cv2.merge((r_chan, g_chan, b_chan))
-            cv2.imwrite('frontier.png', disp_img)
+            # cv2.imwrite('frontier.png', disp_img)
         else:
             print("No frontier found.")    
 
         return cp.array(self.one_hot_frontier)
         # return cp.array(self.sdf_frontier)
-        return cp.array(self.information_gain_arr)
+        # return cp.array(self.information_gain_arr)
 
     def find_frontiers(self,circle_mask=True):
         # Find frontier cells (unknown cells that are adjacent to free cells, not occupied cells)
@@ -147,31 +154,17 @@ class FrontierExplorer(PluginBase):
     def find_optimal_frontier(self):
         '''Find the optimal frontier cell to explore based on the information gain.'''
  
-
-        frontier_mask = self.find_frontiers(circle_mask=True)
-        # start_event = torch.cuda.Event(enable_timing=True)
-        # end_event = torch.cuda.Event(enable_timing=True)
-        # torch.cuda.synchronize()
-        # start_event.record()
-        # end_event.record()
-        # torch.cuda.synchronize()
-        # elapsed_time = start_event.elapsed_time(end_event)
-        # print(f"find_frontiers took {elapsed_time:0.3f} ms.")
+        with Timer('Find Frontiers'):
+            frontier_mask = self.find_frontiers(circle_mask=True)
 
         if len(cp.argwhere(frontier_mask)) == 0:
             return None
         max_information_gain = -1
         optimal_frontier = None
-        
-        # kernel approximating a circle of radius robot_cell_sight
-        kernel = cp.zeros((2 * self.robot_cell_sight + 1, 2 * self.robot_cell_sight + 1))
-        for i in range(2 * self.robot_cell_sight + 1):
-            for j in range(2 * self.robot_cell_sight + 1):
-                if (i - self.robot_cell_sight) ** 2 + (j - self.robot_cell_sight) ** 2 <= self.robot_cell_sight ** 2:
-                    kernel[i, j] = 1
 
         info_cells = cp.where(cp.isnan(self.grid_map), 1, 0)
-        self.information_gain_arr = convolve(info_cells, kernel, mode='constant', cval=1)
+        with Timer('Convolve'):
+            self.information_gain_arr = convolve(info_cells, self.kernel, mode='constant', cval=1)
 
         # Mask to only consider frontier cells
         valid_info_gain = self.information_gain_arr * frontier_mask
@@ -196,33 +189,19 @@ class FrontierExplorer(PluginBase):
     def find_optimal_frontier_sdf(self,sdf_layer):
         '''Finds optimal frontier cell to explore, with information gain weighted by the SDF layer.'''
         #TODO: Correct timing of this funciton
-        # start_event = torch.cuda.Event(enable_timing=True)
-        # end_event = torch.cuda.Event(enable_timing=True)
-        # torch.cuda.synchronize()
-        # start_event.record()
-        frontier_mask = self.find_frontiers(circle_mask=True)
-        # end_event.record()
-        # torch.cuda.synchronize()
-        # elapsed_time = start_event.elapsed_time(end_event)
-        # print(f"Frontier cells found in {elapsed_time:0.3f} ms.")
+        with Timer('Find Frontier'):
+            frontier_mask = self.find_frontiers(circle_mask=True)
+        
 
         if len(cp.argwhere(frontier_mask)) == 0:
             return None
         max_information_gain = -1
         optimal_frontier = None
         
-        # kernel approximating a circle of radius robot_cell_sight
-        kernel = cp.zeros((2 * self.robot_cell_sight + 1, 2 * self.robot_cell_sight + 1))
-        for i in range(2 * self.robot_cell_sight + 1):
-            for j in range(2 * self.robot_cell_sight + 1):
-                if (i - self.robot_cell_sight) ** 2 + (j - self.robot_cell_sight) ** 2 <= self.robot_cell_sight ** 2:
-                    kernel[i, j] = 1
-        
         info_cells = cp.where(cp.isnan(self.grid_map), 1, 0)
         
-
-        self.information_gain_arr = convolve(info_cells, kernel, mode='constant', cval=1)
-
+        with Timer('Convolve'):
+            self.information_gain_arr = convolve(info_cells, self.kernel, mode='constant', cval=1)
 
         norm_sdf = (sdf_layer - cp.min(sdf_layer))/(cp.max(sdf_layer) - cp.min(sdf_layer))
         # self.information_gain_arr = (self.information_gain_arr - cp.min(self.information_gain_arr))/(cp.max(self.information_gain_arr) - cp.min(self.information_gain_arr))
@@ -234,7 +213,7 @@ class FrontierExplorer(PluginBase):
         optimal_frontier = cp.unravel_index(cp.argmax(self.sdf_frontier), self.sdf_frontier.shape)
         max_information_gain = cp.max(self.sdf_frontier)
 
-        print("Frontier:", optimal_frontier, "Information gain:", max_information_gain)
+        # print("Frontier:", optimal_frontier, "Information gain:", max_information_gain)
         return optimal_frontier
 
 
@@ -255,17 +234,16 @@ class FrontierExplorer(PluginBase):
 if __name__ == "__main__":
 
     # Example usage:
-    grid_map = cp.array([[cp.nan,   0,      0,          cp.nan],
-                        [cp.nan,   1,      cp.nan,     cp.nan],
-                        [0,        0,      0,          1],
-                        [0,        cp.nan, cp.nan,     1]])
+    # Create a grid map with some 0s, 1s and cp.nan
+    size = 200, 200
+    grid_map = cp.random.choice([0, 1, cp.nan], size=size, p=[0.7, 0.1, 0.2])
 
     robot_size = 1
-    robot_cell_sight = 2  # Assuming the robot can see 2 grid cells in each direction, not exactly a radius but consistent with gridmap
+    robot_cell_sight = 80  # Assuming the robot can see 2 grid cells in each direction, not exactly a radius but consistent with gridmap
 
-    explorer = FrontierExplorer()
+    explorer = FrontierExplorer(cell_n=size[0], robot_size=robot_size, robot_cell_sight=robot_cell_sight)
     explorer.grid_map = grid_map
 
-  
-    optimal_frontier = explorer.find_optimal_frontier()
+    with Timer('Optimal Frontier'):
+        optimal_frontier = explorer.find_optimal_frontier()
     print("Optimal frontier:", optimal_frontier)
