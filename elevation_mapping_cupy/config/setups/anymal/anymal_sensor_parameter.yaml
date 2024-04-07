@@ -114,11 +114,25 @@ subscribers:
   #   topic_name_camera_info: /v4l2_camera/camera_info_throttley
   #   data_type: image
 
-  traversable_segmentation_probs:
-    topic_name: /traversable_segmentation/class_probabilities
-    camera_info_topic_name: /traversable_segmentation/camera_info
+  traversable_segmentation_probs_rear:
+    topic_name: /traversable_segmentation/class_probabilities_rear
+    camera_info_topic_name: /traversable_segmentation/camera_info_rear
     data_type: image
-    channels: ['trav','non-trav',"null"]
+    channels: ['trav','non-trav','null']
+    # fusion_methods: ['exponential','exponential','exponential']
+
+  traversable_segmentation_probs_front:
+    topic_name: /traversable_segmentation/class_probabilities_front
+    camera_info_topic_name: /traversable_segmentation/camera_info_front
+    data_type: image
+    channels: ['trav','non-trav','null']
+    # fusion_methods: ['exponential','exponential','exponential']
+
+  traversable_segmentation_probs_hdr:
+    topic_name: /traversable_segmentation/class_probabilities_hdr
+    camera_info_topic_name: /traversable_segmentation/camera_info_hdr
+    data_type: image
+    channels: ['trav','non-trav','null']
     # fusion_methods: ['exponential','exponential','exponential']
   
 #Anymal D
