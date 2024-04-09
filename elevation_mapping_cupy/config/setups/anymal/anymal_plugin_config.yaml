@@ -82,17 +82,17 @@ traversable_fusion_min0.2:                       # Name of your filter
     min_safe_geo: 0.3                         # Min safe geo val. Below this the min of semantic and geometric is used
     min_safe_sem: 0.0                         # Min safe sem val. Below this the min of semantic and geometric is used
 
-info_goal:
-  type: "info_goal"
-  enable: True
-  fill_nan: True
-  is_height_layer: False
-  layer_name: "info_goal"
-  extra_params:
-    robot_size: 1
-    robot_cell_sight: 100
-    occupied_threshold: 0.3
-    occupancy_layer_name: "traversable_fusion_min_layer0.5"
+# info_goal:
+#   type: "info_goal"
+#   enable: True
+#   fill_nan: True
+#   is_height_layer: False
+#   layer_name: "info_goal"
+#   extra_params:
+#     robot_size: 10
+#     robot_cell_sight: 100
+#     occupied_threshold: 0.5
+#     occupancy_layer_name: "traversable_fusion_min_layer0.5"
 
 sdf_from_layer0.3:
   type: "sdf_from_layer"

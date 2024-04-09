@@ -102,6 +102,27 @@ class SegmentationNode:
         self.camera_info_msg_front.P[6] *= self.height_scale 
         self.camera_info_msg_front.P = tuple(self.camera_info_msg_front.P)
 
+        self.orig_height_hdr, self.orig_width_hdr = self.camera_info_msg_hdr.height, self.camera_info_msg_hdr.width
+        self.camera_info_msg_hdr.height = 128
+        self.camera_info_msg_hdr.width = 128
+
+        self.height_scale_hdr = self.camera_info_msg_hdr.height / self.orig_height_hdr
+        self.width_scale_hdr = self.camera_info_msg_hdr.width / self.orig_width_hdr
+
+        self.camera_info_msg_hdr.K = list(self.camera_info_msg_hdr.K)
+        self.camera_info_msg_hdr.K[0] *= self.width_scale_hdr
+        self.camera_info_msg_hdr.K[4] *= self.height_scale_hdr
+        self.camera_info_msg_hdr.K[2] *= self.width_scale_hdr
+        self.camera_info_msg_hdr.K[5] *= self.height_scale_hdr
+        self.camera_info_msg_hdr.K = tuple(self.camera_info_msg_hdr.K) 
+
+        self.camera_info_msg_hdr.P = list(self.camera_info_msg_hdr.P)
+        self.camera_info_msg_hdr.P[0] *= self.width_scale_hdr
+        self.camera_info_msg_hdr.P[5] *= self.height_scale_hdr 
+        self.camera_info_msg_hdr.P[2] *= self.width_scale_hdr
+        self.camera_info_msg_hdr.P[6] *= self.height_scale_hdr 
+        self.camera_info_msg_hdr.P = tuple(self.camera_info_msg_hdr.P)
+
         ts = message_filters.ApproximateTimeSynchronizer([self.image_sub_rear, self.image_sub_front, self.image_sub_hdr], 1, 0.1)
         ts.registerCallback(self.image_callback)
 

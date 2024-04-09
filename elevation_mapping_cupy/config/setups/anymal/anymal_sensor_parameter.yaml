@@ -34,7 +34,7 @@ publishers:
 
   traversable_segmentation: # Topic name
     layers: ['elevation', 'traversability', 'variance','traversable_fusion_layer',"traversable_fusion_min_layer0.0",
-            "traversable_fusion_min_layer0.2","traversable_fusion_min_layer0.5","traversable_fusion_min_layer0.8","sdf_layer0.1","sdf_layer0.3","info_goal"]
+            "traversable_fusion_min_layer0.2","traversable_fusion_min_layer0.5","traversable_fusion_min_layer0.8","sdf_layer0.1","sdf_layer0.3"] #,"info_goal"]
     basic_layers: ['elevation']
     fps: 3.0
 
