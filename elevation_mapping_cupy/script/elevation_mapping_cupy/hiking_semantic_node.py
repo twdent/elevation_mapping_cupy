@@ -59,12 +59,12 @@ class SegmentationNode:
         # # Subscribers
         self.image_sub_rear = message_filters.Subscriber('/wide_angle_camera_rear/image_color_rect/compressed', CompressedImage, queue_size=1, buff_size=2**24)
         self.image_sub_front = message_filters.Subscriber('/wide_angle_camera_front/image_color_rect/compressed', CompressedImage, queue_size=1, buff_size=2**24)
-        self.image_sub_hdr = message_filters.Subscriber('/hdr_camera/image_raw/compressed', CompressedImage, queue_size=1, buff_size=2**24)
+        # self.image_sub_hdr = message_filters.Subscriber('/hdr_camera/image_raw/compressed', CompressedImage, queue_size=1, buff_size=2**24)
 
         print("Segmentation waiting for camera info message...")
         self.camera_info_msg_rear = rospy.wait_for_message('/wide_angle_camera_rear/camera_info', CameraInfo)
         self.camera_info_msg_front = rospy.wait_for_message('/wide_angle_camera_front/camera_info', CameraInfo)
-        self.camera_info_msg_hdr = rospy.wait_for_message('/hdr_camera/camera_info', CameraInfo)
+        # self.camera_info_msg_hdr = rospy.wait_for_message('/hdr_camera/camera_info', CameraInfo)
         
         self.orig_height, self.orig_width = self.camera_info_msg_rear.height, self.camera_info_msg_rear.width
         new_height, new_width =  128, 128
@@ -75,11 +75,12 @@ class SegmentationNode:
         self.camera_info_msg_front = self.intrinsic_matrix_rescale(self.camera_info_msg_front,
                                                                     self.camera_info_msg_front.height, self.camera_info_msg_front.width,
                                                                     new_height, new_width)
-        self.camera_info_msg_hdr = self.intrinsic_matrix_rescale(self.camera_info_msg_hdr,
-                                                                    self.camera_info_msg_hdr.height, self.camera_info_msg_hdr.width,
-                                                                    new_height, new_width)  
+        # self.camera_info_msg_hdr = self.intrinsic_matrix_rescale(self.camera_info_msg_hdr,
+        #                                                             self.camera_info_msg_hdr.height, self.camera_info_msg_hdr.width,
+        #                                                             new_height, new_width)  
 
-        ts = message_filters.ApproximateTimeSynchronizer([self.image_sub_rear, self.image_sub_front, self.image_sub_hdr], 1, 0.1)
+        # ts = message_filters.ApproximateTimeSynchronizer([self.image_sub_rear, self.image_sub_front, self.image_sub_hdr], 1, 0.1)
+        ts = message_filters.ApproximateTimeSynchronizer([self.image_sub_rear, self.image_sub_front], 1, 0.1)
         ts.registerCallback(self.image_callback)
 
     def intrinsic_matrix_rescale(self, camera_info_msg, orig_height, orig_width, new_height, new_width):
@@ -106,26 +107,27 @@ class SegmentationNode:
         return camera_info_msg
         
     @torch.no_grad()
-    def image_callback(self, msg_rear, msg_front, msg_hdr):
+    def image_callback(self, msg_rear, msg_front):#, msg_hdr):
         with Timer('Segmentation Callback'):
 
             # Convert compressed image to OpenCV format
             cv_image_rear = self.bridge.compressed_imgmsg_to_cv2(msg_rear, desired_encoding='passthrough')
             cv_image_front = self.bridge.compressed_imgmsg_to_cv2(msg_front, desired_encoding='passthrough')
-            cv_image_hdr = self.bridge.compressed_imgmsg_to_cv2(msg_hdr, desired_encoding='passthrough')
+            # cv_image_hdr = self.bridge.compressed_imgmsg_to_cv2(msg_hdr, desired_encoding='passthrough')
 
             # Color convert and batch images
             cv_image_rear = cv2.cvtColor(cv_image_rear, cv2.COLOR_BGR2RGB)
             cv_image_front = cv2.cvtColor(cv_image_front, cv2.COLOR_BGR2RGB)
-            cv_image_hdr = cv2.cvtColor(cv_image_hdr, cv2.COLOR_BGR2RGB)
+            # cv_image_hdr = cv2.cvtColor(cv_image_hdr, cv2.COLOR_BGR2RGB)
 
             # Resize images
             cv_image_rear = cv2.resize(cv_image_rear, (self.orig_width, self.orig_height))
             cv_image_front = cv2.resize(cv_image_front, (self.orig_width, self.orig_height))
-            cv_image_hdr = cv2.resize(cv_image_hdr, (self.orig_width, self.orig_height))
+            # cv_image_hdr = cv2.resize(cv_image_hdr, (self.orig_width, self.orig_height))
 
             # Batch images
-            cv_image_batched = np.stack([cv_image_rear, cv_image_front, cv_image_hdr], axis=0)        
+            # cv_image_batched = np.stack([cv_image_rear, cv_image_front, cv_image_hdr], axis=0)        
+            cv_image_batched = np.stack([cv_image_rear, cv_image_front], axis=0)        
             # Perform segmentation model
             segmented_image, class_probabilities_batch = self.segment_image(cv_image_batched)
 
@@ -150,7 +152,7 @@ class SegmentationNode:
                 # Convert class_probabilities to img messages                    
                 class_prob_msg_rear = self.bridge.cv2_to_imgmsg(class_probabilities_batch[0], encoding='passthrough')
                 class_prob_msg_front = self.bridge.cv2_to_imgmsg(class_probabilities_batch[1], encoding='passthrough')
-                class_prob_msg_hdr = self.bridge.cv2_to_imgmsg(class_probabilities_batch[2], encoding='passthrough')
+                # class_prob_msg_hdr = self.bridge.cv2_to_imgmsg(class_probabilities_batch[2], encoding='passthrough')
 
                 # Set the frame ID and timestamp
                 class_prob_msg_rear.header.frame_id = msg_rear.header.frame_id
@@ -159,13 +161,13 @@ class SegmentationNode:
                 class_prob_msg_front.header.frame_id = msg_front.header.frame_id
                 class_prob_msg_front.header.stamp = msg_front.header.stamp
 
-                class_prob_msg_hdr.header.frame_id = msg_hdr.header.frame_id
-                class_prob_msg_hdr.header.stamp = msg_hdr.header.stamp
+                # class_prob_msg_hdr.header.frame_id = msg_hdr.header.frame_id
+                # class_prob_msg_hdr.header.stamp = msg_hdr.header.stamp
                 
                 # Publish the class probabilities
                 self.class_probs_rear_pub.publish(class_prob_msg_rear)
                 self.class_probs_front_pub.publish(class_prob_msg_front)
-                self.class_probs_hdr_pub.publish(class_prob_msg_hdr)
+                # self.class_probs_hdr_pub.publish(class_prob_msg_hdr)
 
                 self.segmented_image_pub.publish(segmented_msg)
 
@@ -176,12 +178,12 @@ class SegmentationNode:
                 camera_info_msg_front = self.camera_info_msg_front
                 camera_info_msg_front.header.stamp = msg_front.header.stamp
 
-                camera_info_msg_hdr = self.camera_info_msg_hdr
-                camera_info_msg_hdr.header.stamp = msg_hdr.header.stamp
+                # camera_info_msg_hdr = self.camera_info_msg_hdr
+                # camera_info_msg_hdr.header.stamp = msg_hdr.header.stamp
 
                 self.segmented_info_rear_pub.publish(camera_info_msg_rear)
                 self.segmented_info_front_pub.publish(camera_info_msg_front)
-                self.segmented_info_hdr_pub.publish(camera_info_msg_hdr)
+                # self.segmented_info_hdr_pub.publish(camera_info_msg_hdr)
 
     def segment_image(self, image):
         '''Perform segmentation on the batch of images.
