@@ -56,7 +56,6 @@ class SegmentationNode:
         self.model = SegformerForSemanticSegmentation.from_pretrained(MODEL_PATH, device_map = self.device)
         self.model.eval()
 
-
         # # Subscribers
         self.image_sub_rear = message_filters.Subscriber('/wide_angle_camera_rear/image_color_rect/compressed', CompressedImage, queue_size=1, buff_size=2**24)
         self.image_sub_front = message_filters.Subscriber('/wide_angle_camera_front/image_color_rect/compressed', CompressedImage, queue_size=1, buff_size=2**24)
@@ -68,72 +67,44 @@ class SegmentationNode:
         self.camera_info_msg_hdr = rospy.wait_for_message('/hdr_camera/camera_info', CameraInfo)
         
         self.orig_height, self.orig_width = self.camera_info_msg_rear.height, self.camera_info_msg_rear.width
-        self.camera_info_msg_rear.height = 128
-        self.camera_info_msg_rear.width = 128
+        new_height, new_width =  128, 128
         
-        self.height_scale = self.camera_info_msg_rear.height / self.orig_height
-        self.width_scale = self.camera_info_msg_rear.width / self.orig_width
-
-        self.camera_info_msg_rear.K = list(self.camera_info_msg_rear.K)
-        self.camera_info_msg_rear.K[0] *= self.width_scale
-        self.camera_info_msg_rear.K[4] *= self.height_scale 
-        self.camera_info_msg_rear.K[2] *= self.width_scale
-        self.camera_info_msg_rear.K[5] *= self.height_scale
-        self.camera_info_msg_rear.K = tuple(self.camera_info_msg_rear.K) 
-
-        self.camera_info_msg_rear.P = list(self.camera_info_msg_rear.P)
-        self.camera_info_msg_rear.P[0] *= self.width_scale
-        self.camera_info_msg_rear.P[5] *= self.height_scale 
-        self.camera_info_msg_rear.P[2] *= self.width_scale
-        self.camera_info_msg_rear.P[6] *= self.height_scale 
-        self.camera_info_msg_rear.P = tuple(self.camera_info_msg_rear.P)
-
-        self.camera_info_msg_front.K = list(self.camera_info_msg_front.K)
-        self.camera_info_msg_front.K[0] *= self.width_scale
-        self.camera_info_msg_front.K[4] *= self.height_scale 
-        self.camera_info_msg_front.K[2] *= self.width_scale
-        self.camera_info_msg_front.K[5] *= self.height_scale
-        self.camera_info_msg_front.K = tuple(self.camera_info_msg_front.K) 
-
-        self.camera_info_msg_front.P = list(self.camera_info_msg_front.P)
-        self.camera_info_msg_front.P[0] *= self.width_scale
-        self.camera_info_msg_front.P[5] *= self.height_scale 
-        self.camera_info_msg_front.P[2] *= self.width_scale
-        self.camera_info_msg_front.P[6] *= self.height_scale 
-        self.camera_info_msg_front.P = tuple(self.camera_info_msg_front.P)
-
-        self.orig_height_hdr, self.orig_width_hdr = self.camera_info_msg_hdr.height, self.camera_info_msg_hdr.width
-        self.camera_info_msg_hdr.height = 128
-        self.camera_info_msg_hdr.width = 128
-
-        self.height_scale_hdr = self.camera_info_msg_hdr.height / self.orig_height_hdr
-        self.width_scale_hdr = self.camera_info_msg_hdr.width / self.orig_width_hdr
-
-        self.camera_info_msg_hdr.K = list(self.camera_info_msg_hdr.K)
-        self.camera_info_msg_hdr.K[0] *= self.width_scale_hdr
-        self.camera_info_msg_hdr.K[4] *= self.height_scale_hdr
-        self.camera_info_msg_hdr.K[2] *= self.width_scale_hdr
-        self.camera_info_msg_hdr.K[5] *= self.height_scale_hdr
-        self.camera_info_msg_hdr.K = tuple(self.camera_info_msg_hdr.K) 
-
-        self.camera_info_msg_hdr.P = list(self.camera_info_msg_hdr.P)
-        self.camera_info_msg_hdr.P[0] *= self.width_scale_hdr
-        self.camera_info_msg_hdr.P[5] *= self.height_scale_hdr 
-        self.camera_info_msg_hdr.P[2] *= self.width_scale_hdr
-        self.camera_info_msg_hdr.P[6] *= self.height_scale_hdr 
-        self.camera_info_msg_hdr.P = tuple(self.camera_info_msg_hdr.P)
+        self.camera_info_msg_rear = self.intrinsic_matrix_rescale(self.camera_info_msg_rear, 
+                                                                    self.camera_info_msg_rear.height, self.camera_info_msg_rear.width, 
+                                                                    new_height, new_width)
+        self.camera_info_msg_front = self.intrinsic_matrix_rescale(self.camera_info_msg_front,
+                                                                    self.camera_info_msg_front.height, self.camera_info_msg_front.width,
+                                                                    new_height, new_width)
+        self.camera_info_msg_hdr = self.intrinsic_matrix_rescale(self.camera_info_msg_hdr,
+                                                                    self.camera_info_msg_hdr.height, self.camera_info_msg_hdr.width,
+                                                                    new_height, new_width)  
 
         ts = message_filters.ApproximateTimeSynchronizer([self.image_sub_rear, self.image_sub_front, self.image_sub_hdr], 1, 0.1)
         ts.registerCallback(self.image_callback)
 
-        # self.info_sub = rospy.Subscriber(, self.info_callback, queue_size=1)
-        #Subscribers hdr camera //v4l2_camera/image_raw_throttle/compressed
-        # self.image_sub = rospy.Subscriber('/v4l2_camera/image_raw_throttle/compressed', CompressedImage, self.image_callback, queue_size=1, buff_size=2**24)
-        # self.info_sub = rospy.Subscriber('/v4l2_camera/camera_info_throttle', CameraInfo, self.info_callback, queue_size=1)
-        # fixed topic /hdr_camera/image_raw/compressed
-        # self.image_sub = rospy.Subscriber('/hdr_camera/image_raw/compressed', CompressedImage, self.image_callback, queue_size=1, buff_size=2**24)
-        # self.info_sub = rospy.Subscriber('/hdr_camera/camera_info', CameraInfo, self.info_callback, queue_size=1)
+    def intrinsic_matrix_rescale(self, camera_info_msg, orig_height, orig_width, new_height, new_width):
+        height_scale = new_height / orig_height
+        width_scale = new_width / orig_width
 
+        camera_info_msg.K = list(camera_info_msg.K)
+        camera_info_msg.K[0] *= width_scale
+        camera_info_msg.K[4] *= height_scale 
+        camera_info_msg.K[2] *= width_scale
+        camera_info_msg.K[5] *= height_scale
+        camera_info_msg.K = tuple(camera_info_msg.K) 
+
+        camera_info_msg.P = list(camera_info_msg.P)
+        camera_info_msg.P[0] *= width_scale
+        camera_info_msg.P[5] *= height_scale 
+        camera_info_msg.P[2] *= width_scale
+        camera_info_msg.P[6] *= height_scale 
+        camera_info_msg.P = tuple(camera_info_msg.P)
+
+        camera_info_msg.height = new_height
+        camera_info_msg.width = new_width
+
+        return camera_info_msg
+        
     @torch.no_grad()
     def image_callback(self, msg_rear, msg_front, msg_hdr):
         with Timer('Segmentation Callback'):
